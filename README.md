@@ -17,3 +17,14 @@ A simple Streamlit app template for you to modify!
    ```
    $ streamlit run streamlit_app.py
    ```
+
+
+3. To push to LIVE mode
+
+   ...
+   run the following codes in bash mode
+   
+   git add .
+   git commit -m "ok"
+   git push origin main
+   ...
