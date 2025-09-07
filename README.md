@@ -21,10 +21,10 @@ A simple Streamlit app template for you to modify!
 
 3. To push to LIVE mode
 
-   ...
    run the following codes in bash mode
-
-   $ git add .
-   $ git commit -m "ok"
-   $ git push origin main
-   ...
+   
+   ```
+   git add .
+   git commit -m "ok"
+   git push origin main
+   ```
