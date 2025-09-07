@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 
-st.set_page_config(layout="wide")
+st.set_page_config(page_title="Dividend Analysis App", layout="wide")
 
 # 🛡️ Session state initialization
 if "logged_in" not in st.session_state:
