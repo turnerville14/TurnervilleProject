@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
+import re
 
 st.set_page_config(page_title="Dividend Analysis App", layout="wide")
 
@@ -50,51 +51,71 @@ if st.session_state.logged_in:
 
     def analyze_ticker(ticker):
         ticker = ticker.strip()
-        stock = yf.Ticker(ticker)
-        info = stock.info
 
-        name = info.get("shortName", "N/A")
-        sector = info.get("sector", "N/A")
-        industry = info.get("industry", "N/A")
-        current_price = info.get("currentPrice", 0)
-        dividend_yield = info.get("dividendYield", 0) if info.get("dividendYield") else 0
-        high_52 = info.get("fiftyTwoWeekHigh", 0)
-        low_52 = info.get("fiftyTwoWeekLow", 0)
-        price_zone = ((current_price - low_52) / (high_52 - low_52)) * 100 if high_52 != low_52 else 0
+        # 🚫 Skip if ticker contains special characters
+        if not re.match(r'^[A-Z0-9\-\.]+$', ticker):
+            st.warning(f"⚠️ Skipping invalid ticker: {ticker}")
+            return None
 
-        hist = stock.history(period="5y")
-        low_5y_price = hist["Close"].min()
-        low_5y_date = hist["Close"].idxmin()
-        payout_5y = get_dividend_payout(ticker, low_5y_date)
-        yield_5y = (payout_5y / low_5y_price) * 100 if low_5y_price else 0
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
 
-        target_actual = (current_price * dividend_yield / yield_5y) if yield_5y else 0
-        target_safe = (current_price * dividend_yield / (yield_5y * 0.9)) if yield_5y else 0
-        target_safest = (current_price * dividend_yield / (yield_5y * 0.8)) if yield_5y else 0
-        strength = "Undervalued" if current_price < target_actual else "Overvalued"
+            # 🚫 Skip if info is empty or missing key data
+            if not info or "currentPrice" not in info:
+                st.warning(f"⚠️ No data available for: {ticker}")
+                return None
 
-        return {
-            "Ticker": ticker,
-            "Name": name,
-            "Sector": sector,
-            "Industry": industry,
-            "Current Price": round(current_price, 2),
-            "Stock Strength": strength,
-            "Price Zone (%)": round(price_zone, 2),
-            "Dividend Yield (%)": round(dividend_yield, 2),
-            "52W High": round(high_52, 2),
-            "52W Low": round(low_52, 2),
-            "5Y Low Date": low_5y_date.date(),
-            "5Y Low Price": round(low_5y_price, 2),
-            "5Y Dividend Payout": round(payout_5y, 2),
-            "5Y Dividend Yield (%)": round(yield_5y, 2),
-            "Target Price (Actual)": round(target_actual, 2),
-            "Target Price (Safe)": round(target_safe, 2),
-            "Target Price (Safest)": round(target_safest, 2)
-        }
+            name = info.get("shortName", "N/A")
+            sector = info.get("sector", "N/A")
+            industry = info.get("industry", "N/A")
+            current_price = info.get("currentPrice", 0)
+            dividend_yield = info.get("dividendYield", 0) or 0
+            high_52 = info.get("fiftyTwoWeekHigh", 0)
+            low_52 = info.get("fiftyTwoWeekLow", 0)
+            price_zone = ((current_price - low_52) / (high_52 - low_52)) * 100 if high_52 != low_52 else 0
+
+            hist = stock.history(period="5y")
+            if hist.empty:
+                st.warning(f"⚠️ No historical data for: {ticker}")
+                return None
+
+            low_5y_price = hist["Close"].min()
+            low_5y_date = hist["Close"].idxmin()
+            payout_5y = get_dividend_payout(ticker, low_5y_date)
+            yield_5y = (payout_5y / low_5y_price) * 100 if low_5y_price else 0
+
+            target_actual = (current_price * dividend_yield / yield_5y) if yield_5y else 0
+            target_safe = (current_price * dividend_yield / (yield_5y * 0.9)) if yield_5y else 0
+            target_safest = (current_price * dividend_yield / (yield_5y * 0.8)) if yield_5y else 0
+            strength = "Undervalued" if current_price < target_actual else "Overvalued"
+
+            return {
+                "Ticker": ticker,
+                "Name": name,
+                "Sector": sector,
+                "Industry": industry,
+                "Current Price": round(current_price, 2),
+                "Stock Strength": strength,
+                "Price Zone (%)": round(price_zone, 2),
+                "Dividend Yield (%)": round(dividend_yield, 2),
+                "52W High": round(high_52, 2),
+                "52W Low": round(low_52, 2),
+                "5Y Low Date": low_5y_date.date(),
+                "5Y Low Price": round(low_5y_price, 2),
+                "5Y Dividend Payout": round(payout_5y, 2),
+                "5Y Dividend Yield (%)": round(yield_5y, 2),
+                "Target Price (Actual)": round(target_actual, 2),
+                "Target Price (Safe)": round(target_safe, 2),
+                "Target Price (Safest)": round(target_safest, 2)
+            }
+
+        except Exception as e:
+            st.error(f"❌ Error analyzing {ticker}: {e}")
+            return None
 
     if tickers and tickers[0]:
-        results = [analyze_ticker(t) for t in tickers]
+        results = [r for t in tickers if (r := analyze_ticker(t)) is not None]
         df = pd.DataFrame(results)
 
         def highlight_zone(val):
