@@ -12,17 +12,23 @@ if "login_success" not in st.session_state:
     st.session_state.login_success = False
 
 # 🔐 Login form
-if not st.session_state.logged_in:
-    st.title("🔐 Login to Access Dividend Analysis")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+if not st.session_state.get("logged_in", False):
+    # Create 3 columns and use the center one with enhanced container styling
+    cols = st.columns([1, 2, 1])
+    with cols[1]:
+        # Apply border directly to the form container
+        with st.form("login_form", clear_on_submit=False).container(border=False, height="stretch", vertical_alignment="center"):
+            st.markdown("### 🔐 Login to Dividend Analysis")
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login")
 
-    if st.button("Login"):
-        if username == "Admin" and password == "Password":
-            st.session_state.logged_in = True
-            st.session_state.login_success = True
-        else:
-            st.error("Invalid credentials. Please try again.")
+            if submitted:
+                if username == "admin" and password == "Password123":
+                    st.session_state.logged_in = True
+                    st.session_state.login_success = True
+                else:
+                    st.error("Invalid credentials. Please try again.")
 
 # ✅ Main App Interface
 if st.session_state.logged_in:
@@ -30,7 +36,7 @@ if st.session_state.logged_in:
         st.success("Login successful! 🎉")
         st.session_state.login_success = False  # Show message only once
 
-    st.title("📊 Dividend Analysis App")
+    st.markdown("## 📊 Dividend Analysis App")
 
     # 🧾 User input
     tickers = st.text_input("Enter stock tickers separated by commas (e.g., AAPL, MSFT, KO)").upper().split(',')
@@ -117,9 +123,7 @@ if st.session_state.logged_in:
         formatters = {col: format_currency for col in currency_cols}
         formatters.update({col: format_percent for col in percent_cols})
 
-        df_display = df.reset_index(drop=True)
-
-        styled_df = df_display.style \
+        styled_df = df.style \
             .applymap(highlight_zone, subset=["Price Zone (%)"]) \
             .applymap(highlight_strength, subset=["Stock Strength"]) \
             .format(formatters)
