@@ -54,6 +54,8 @@ if st.session_state.logged_in:
         info = stock.info
 
         name = info.get("shortName", "N/A")
+        sector = info.get("sector", "N/A")
+        industry = info.get("industry", "N/A")
         current_price = info.get("currentPrice", 0)
         dividend_yield = info.get("dividendYield", 0) if info.get("dividendYield") else 0
         high_52 = info.get("fiftyTwoWeekHigh", 0)
@@ -74,6 +76,8 @@ if st.session_state.logged_in:
         return {
             "Ticker": ticker,
             "Name": name,
+            "Sector": sector,
+            "Industry": industry,
             "Current Price": round(current_price, 2),
             "Stock Strength": strength,
             "Price Zone (%)": round(price_zone, 2),
