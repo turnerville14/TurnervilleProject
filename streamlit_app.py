@@ -25,7 +25,7 @@ if not st.session_state.get("logged_in", False):
             submitted = st.form_submit_button("Login")
 
             if submitted:
-                if username == "admin" and password == "Password123":
+                if username == "Admin" and password == "Password123":
                     st.session_state.logged_in = True
                     st.session_state.login_success = True
                 else:
@@ -40,7 +40,10 @@ if st.session_state.logged_in:
     st.markdown("## 📊 Dividend Analysis App")
 
     # 🧾 User input
-    tickers = st.text_input("Enter stock tickers separated by commas (e.g., AAPL, MSFT, KO)").upper().split(',')
+    raw_input = st.text_input("Enter stock tickers separated by commas or spaces (e.g., AAPL MSFT, KO)")
+    tickers = re.split(r'[,\s]+', raw_input.upper().strip())
+    tickers = [t for t in tickers if t]  # remove any empty strings
+
 
     def get_dividend_payout(ticker, low_date):
         start = low_date - timedelta(days=365)
