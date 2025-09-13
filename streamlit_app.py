@@ -44,6 +44,8 @@ if st.session_state.logged_in:
     tickers = re.split(r'[,\s]+', raw_input.upper().strip())
     tickers = [t for t in tickers if t]  # remove any empty strings
 
+    # 📌 Collect messages to display later
+    messages = []
 
     def get_dividend_payout(ticker, low_date):
         start = low_date - timedelta(days=365)
@@ -57,7 +59,7 @@ if st.session_state.logged_in:
 
         # 🚫 Skip if ticker contains special characters
         if not re.match(r'^[A-Z0-9\-\.]+$', ticker):
-            st.warning(f"⚠️ Skipping invalid ticker: {ticker}")
+            messages.append(("warning", f"⚠️ Skipping invalid ticker: {ticker}"))
             return None
 
         try:
@@ -66,7 +68,7 @@ if st.session_state.logged_in:
 
             # 🚫 Skip if info is empty or missing key data
             if not info or "currentPrice" not in info:
-                st.warning(f"⚠️ No data available for: {ticker}")
+                messages.append(("warning", f"⚠️ No data available for: {ticker}"))
                 return None
 
             name = info.get("shortName", "N/A")
@@ -80,7 +82,7 @@ if st.session_state.logged_in:
 
             hist = stock.history(period="5y")
             if hist.empty:
-                st.warning(f"⚠️ No historical data for: {ticker}")
+                messages.append(("warning", f"⚠️ No historical data for: {ticker}"))
                 return None
 
             low_5y_price = hist["Close"].min()
@@ -114,7 +116,7 @@ if st.session_state.logged_in:
             }
 
         except Exception as e:
-            st.error(f"❌ Error analyzing {ticker}: {e}")
+            messages.append(("error", f"❌ Error analyzing {ticker}: {e}"))
             return None
 
     if tickers and tickers[0]:
@@ -157,3 +159,14 @@ if st.session_state.logged_in:
             .format(formatters)
 
         st.dataframe(styled_df, use_container_width=True)
+
+        # ✨ Visual separator before messages
+        if messages:
+            st.markdown("---")
+
+        # 🚨 Show collected messages after the table
+        for msg_type, msg_text in messages:
+            if msg_type == "warning":
+                st.warning(msg_text)
+            elif msg_type == "error":
+                st.error(msg_text)
