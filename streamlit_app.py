@@ -3,49 +3,63 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 import re
+import requests
+from bs4 import BeautifulSoup
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
-st.set_page_config(page_title="Dividend Analysis App", layout="wide")
+st.set_page_config(page_title="Stock Analysis App", layout="wide")
 
-# 🛡️ Session state initialization
+# 🛡️ Session state
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "login_success" not in st.session_state:
     st.session_state.login_success = False
 
-# 🔐 Login form
-if not st.session_state.get("logged_in", False):
-    # Create 3 columns and use the center one with enhanced container styling
+# 🔐 Login
+if not st.session_state.logged_in:
     cols = st.columns([1, 2, 1])
     with cols[1]:
-        # Apply border directly to the form container
-        with st.form("login_form", clear_on_submit=False).container(border=False, height="stretch", vertical_alignment="center"):
-            st.markdown("### 🔐 Login to Dividend Analysis")
+        with st.form("login_form", clear_on_submit=False):
+            st.markdown("### 🔐 Login to Stock Analysis")
             username = st.text_input("Username")
             password = st.text_input("Password", type="password")
             submitted = st.form_submit_button("Login")
-
             if submitted:
                 if username == "Admin" and password == "Password123":
                     st.session_state.logged_in = True
                     st.session_state.login_success = True
                 else:
-                    st.error("Invalid credentials. Please try again.")
+                    st.error("Invalid credentials.")
 
-# ✅ Main App Interface
+# ✅ Main App
 if st.session_state.logged_in:
     if st.session_state.login_success:
         st.success("Login successful! 🎉")
-        st.session_state.login_success = False  # Show message only once
+        st.session_state.login_success = False
 
-    st.markdown("## 📊 Dividend Analysis App")
+    st.markdown("## 📊 Stock Analysis Dashboard")
 
-    # 🧾 User input
-    raw_input = st.text_input("Enter stock tickers separated by commas or spaces (e.g., AAPL MSFT, KO)")
+    raw_input = st.text_input("Enter stock tickers (e.g., AAPL MSFT, KO)")
     tickers = re.split(r'[,\s]+', raw_input.upper().strip())
-    tickers = [t for t in tickers if t]  # remove any empty strings
+    tickers = [t for t in tickers if t]
 
-    # 📌 Collect messages to display later
     messages = []
+    analyzer = SentimentIntensityAnalyzer()
+
+    # 🧭 Sector performance snapshot (static for demo)
+    sector_returns = {
+        "Technology": 12.86,
+        "Financial Services": 13.41,
+        "Consumer Cyclical": 5.49,
+        "Communication Services": 27.19,
+        "Healthcare": 1.53,
+        "Industrials": 12.81,
+        "Consumer Defensive": 5.54,
+        "Energy": 2.72,
+        "Basic Materials": 22.78,
+        "Real Estate": 4.80,
+        "Utilities": 4.60
+    }
 
     def get_dividend_payout(ticker, low_date):
         start = low_date - timedelta(days=365)
@@ -54,21 +68,53 @@ if st.session_state.logged_in:
         payout = hist[(hist.index >= start) & (hist.index <= end)].sum()
         return payout
 
+    def get_eps_metrics(stock):
+        info = stock.info
+        eps_data = {}
+        try:
+            eps_data["Trailing EPS"] = round(info.get("trailingEps", 0), 2)
+            eps_data["Forward EPS"] = round(info.get("forwardEps", 0), 2)
+            eps_data["PE Ratio"] = round(info.get("trailingPE", 0), 2)
+            eps_data["PEG Ratio"] = round(info.get("pegRatio", 0), 2)
+        except:
+            pass
+        return eps_data
+
+    def get_sector_performance(sector, dividend_yield):
+        sector_avg = sector_returns.get(sector, None)
+        if sector_avg is None:
+            return "Unknown"
+        return "Outperforming" if dividend_yield * 100 > sector_avg else "Underperforming"
+
+    def get_sentiment(ticker):
+        try:
+            url = f"https://finviz.com/quote.ashx?t={ticker}"
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            soup = BeautifulSoup(requests.get(url, headers=headers).content, "html.parser")
+            news_table = soup.find(id='news-table')
+            headlines = [row.a.text for row in news_table.findAll('tr') if row.a]
+            scores = [analyzer.polarity_scores(h)['compound'] for h in headlines[:10]]
+            avg_score = sum(scores) / len(scores) if scores else 0
+            if avg_score > 0.2:
+                return "Bullish"
+            elif avg_score < -0.2:
+                return "Bearish"
+            else:
+                return "Neutral"
+        except:
+            return "Unknown"
+
     def analyze_ticker(ticker):
         ticker = ticker.strip()
-
-        # 🚫 Skip if ticker contains special characters
         if not re.match(r'^[A-Z0-9\-\.]+$', ticker):
-            messages.append(("warning", f"⚠️ Skipping invalid ticker: {ticker}"))
+            messages.append(("warning", f"⚠️ Invalid ticker: {ticker}"))
             return None
 
         try:
             stock = yf.Ticker(ticker)
             info = stock.info
-
-            # 🚫 Skip if info is empty or missing key data
             if not info or "currentPrice" not in info:
-                messages.append(("warning", f"⚠️ No data available for: {ticker}"))
+                messages.append(("warning", f"⚠️ No data for: {ticker}"))
                 return None
 
             name = info.get("shortName", "N/A")
@@ -91,11 +137,9 @@ if st.session_state.logged_in:
             yield_5y = (payout_5y / low_5y_price) * 100 if low_5y_price else 0
 
             target_actual = (current_price * dividend_yield / yield_5y) if yield_5y else 0
-            target_safe = (current_price * dividend_yield / (yield_5y * 0.9)) if yield_5y else 0
-            target_safest = (current_price * dividend_yield / (yield_5y * 0.8)) if yield_5y else 0
             strength = "Undervalued" if current_price < target_actual else "Overvalued"
 
-            return {
+            result = {
                 "Ticker": ticker,
                 "Name": name,
                 "Sector": sector,
@@ -111,62 +155,65 @@ if st.session_state.logged_in:
                 "5Y Dividend Payout": round(payout_5y, 2),
                 "5Y Dividend Yield (%)": round(yield_5y, 2),
                 "Target Price (Actual)": round(target_actual, 2),
-                "Target Price (Safe)": round(target_safe, 2),
-                "Target Price (Safest)": round(target_safest, 2)
+                "Sector Performance": get_sector_performance(sector, dividend_yield),
+                "Sentiment": get_sentiment(ticker)
             }
+
+            result.update(get_eps_metrics(stock))
+            return result
 
         except Exception as e:
             messages.append(("error", f"❌ Error analyzing {ticker}: {e}"))
             return None
 
-    if tickers and tickers[0]:
+    if tickers:
         results = [r for t in tickers if (r := analyze_ticker(t)) is not None]
         df = pd.DataFrame(results)
 
-        def highlight_zone(val):
-            if val < 35:
-                return 'background-color: lightgreen; color: black;'
-            elif 35 <= val <= 65:
-                return 'background-color: lightyellow; color: black;'
-            else:
-                return 'background-color: lightcoral; color: black;'
-
         def highlight_strength(val):
-            return 'background-color: lightgreen; color: black;' if val == "Undervalued" else 'background-color: lightcoral; color: black;'
+            return 'background-color: lightgreen;' if val == "Undervalued" else 'background-color: lightcoral;'
 
-        def format_currency(val):
-            return f"${val:,.2f}"
+        def highlight_sentiment(val):
+            colors = {
+                "Bullish": "lightgreen",
+                "Bearish": "lightcoral",
+                "Neutral": "lightyellow",
+                "Unknown": "white"
+            }
+            return f'background-color: {colors.get(val, "white")}; color: black;'
 
-        def format_percent(val):
-            return f"{val:.2f}%"
-
-        currency_cols = [
-            "Current Price", "52W High", "52W Low",
-            "5Y Low Price", "5Y Dividend Payout",
-            "Target Price (Actual)", "Target Price (Safe)", "Target Price (Safest)"
+        desired_order = [
+            "Ticker", "Name", "Sector", "Industry",
+            "Current Price", "Trailing EPS", "Forward EPS", "PE Ratio", "PEG Ratio",
+            "Dividend Yield (%)", "5Y Dividend Yield (%)",
+            "Price Zone (%)", "Stock Strength", "Sentiment", "Sector Performance",
+            "Target Price (Actual)", "5Y Low Date", "5Y Low Price", "5Y Dividend Payout"
         ]
-
-        percent_cols = [
-            "Dividend Yield (%)", "5Y Dividend Yield (%)", "Price Zone (%)"
-        ]
-
-        formatters = {col: format_currency for col in currency_cols}
-        formatters.update({col: format_percent for col in percent_cols})
+        df = df[desired_order]
 
         styled_df = df.style \
-            .applymap(highlight_zone, subset=["Price Zone (%)"]) \
             .applymap(highlight_strength, subset=["Stock Strength"]) \
-            .format(formatters)
+            .applymap(highlight_sentiment, subset=["Sentiment"]) \
+            .format({
+                "Current Price": "{:.2f}",
+                "5Y Low Price": "{:.2f}",
+                "5Y Dividend Payout": "{:.2f}",
+                "Target Price (Actual)": "{:.2f}",
+                "Trailing EPS": "{:.2f}",
+                "Forward EPS": "{:.2f}",
+                "PE Ratio": "{:.2f}",
+                "PEG Ratio": "{:.2f}",
+                "Dividend Yield (%)": "{:.2f}%",
+                "5Y Dividend Yield (%)": "{:.2f}%",
+                "Price Zone (%)": "{:.2f}%"
+            })
 
         st.dataframe(styled_df, use_container_width=True)
 
-        # ✨ Visual separator before messages
         if messages:
             st.markdown("---")
-
-        # 🚨 Show collected messages after the table
-        for msg_type, msg_text in messages:
-            if msg_type == "warning":
-                st.warning(msg_text)
-            elif msg_type == "error":
-                st.error(msg_text)
+            for msg_type, msg_text in messages:
+                if msg_type == "warning":
+                    st.warning(msg_text)
+                elif msg_type == "error":
+                    st.error(msg_text)
