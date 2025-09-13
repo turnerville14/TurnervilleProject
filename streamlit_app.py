@@ -46,21 +46,6 @@ if st.session_state.logged_in:
     messages = []
     analyzer = SentimentIntensityAnalyzer()
 
-    # 🧭 Sector performance snapshot (static for demo)
-    sector_returns = {
-        "Technology": 12.86,
-        "Financial Services": 13.41,
-        "Consumer Cyclical": 5.49,
-        "Communication Services": 27.19,
-        "Healthcare": 1.53,
-        "Industrials": 12.81,
-        "Consumer Defensive": 5.54,
-        "Energy": 2.72,
-        "Basic Materials": 22.78,
-        "Real Estate": 4.80,
-        "Utilities": 4.60
-    }
-
     def get_dividend_payout(ticker, low_date):
         start = low_date - timedelta(days=365)
         end = low_date
@@ -79,12 +64,6 @@ if st.session_state.logged_in:
         except:
             pass
         return eps_data
-
-    def get_sector_performance(sector, dividend_yield):
-        sector_avg = sector_returns.get(sector, None)
-        if sector_avg is None:
-            return "Unknown"
-        return "Outperforming" if dividend_yield * 100 > sector_avg else "Underperforming"
 
     def get_sentiment(ticker):
         try:
@@ -155,7 +134,6 @@ if st.session_state.logged_in:
                 "5Y Dividend Payout": round(payout_5y, 2),
                 "5Y Dividend Yield (%)": round(yield_5y, 2),
                 "Target Price (Actual)": round(target_actual, 2),
-                "Sector Performance": get_sector_performance(sector, dividend_yield),
                 "Sentiment": get_sentiment(ticker)
             }
 
@@ -186,7 +164,7 @@ if st.session_state.logged_in:
             "Ticker", "Name", "Sector", "Industry",
             "Current Price", "Trailing EPS", "Forward EPS", "PE Ratio", "PEG Ratio",
             "Dividend Yield (%)", "5Y Dividend Yield (%)",
-            "Price Zone (%)", "Stock Strength", "Sentiment", "Sector Performance",
+            "Price Zone (%)", "Stock Strength", "Sentiment",
             "Target Price (Actual)", "5Y Low Date", "5Y Low Price", "5Y Dividend Payout"
         ]
         df = df[desired_order]
