@@ -20,12 +20,11 @@ if not st.session_state.logged_in:
     cols = st.columns([1, 2, 1])
     with cols[1]:
         with st.form("login_form", clear_on_submit=False):
-            st.markdown("### 🔐 Login to Stock Analysis")
-            username = st.text_input("Username")
+            st.markdown("#### 🔐 Login to Stock Analysis")
             password = st.text_input("Password", type="password")
             submitted = st.form_submit_button("Login")
             if submitted:
-                if username == "Admin" and password == "Password123":
+                if password == "Password123":
                     st.session_state.logged_in = True
                     st.session_state.login_success = True
                 else:
@@ -75,13 +74,13 @@ if st.session_state.logged_in:
             scores = [analyzer.polarity_scores(h)['compound'] for h in headlines[:10]]
             avg_score = sum(scores) / len(scores) if scores else 0
             if avg_score > 0.2:
-                return "Bullish"
+                return "🟢 Bullish"
             elif avg_score < -0.2:
-                return "Bearish"
+                return "🔴 Bearish"
             else:
-                return "Neutral"
+                return "🟡 Neutral"
         except:
-            return "Unknown"
+            return "⚪ Unknown"
 
     def analyze_ticker(ticker):
         ticker = ticker.strip()
@@ -116,7 +115,6 @@ if st.session_state.logged_in:
             yield_5y = (payout_5y / low_5y_price) * 100 if low_5y_price else 0
 
             target_actual = (current_price * dividend_yield / yield_5y) if yield_5y else 0
-            strength = "Undervalued" if current_price < target_actual else "Overvalued"
 
             result = {
                 "Ticker": ticker,
@@ -124,7 +122,6 @@ if st.session_state.logged_in:
                 "Sector": sector,
                 "Industry": industry,
                 "Current Price": round(current_price, 2),
-                "Stock Strength": strength,
                 "Price Zone (%)": round(price_zone, 2),
                 "Dividend Yield (%)": round(dividend_yield, 2),
                 "52W High": round(high_52, 2),
@@ -148,30 +145,16 @@ if st.session_state.logged_in:
         results = [r for t in tickers if (r := analyze_ticker(t)) is not None]
         df = pd.DataFrame(results)
 
-        def highlight_strength(val):
-            return 'background-color: lightgreen;' if val == "Undervalued" else 'background-color: lightcoral;'
-
-        def highlight_sentiment(val):
-            colors = {
-                "Bullish": "lightgreen",
-                "Bearish": "lightcoral",
-                "Neutral": "lightyellow",
-                "Unknown": "white"
-            }
-            return f'background-color: {colors.get(val, "white")}; color: black;'
-
         desired_order = [
             "Ticker", "Name", "Sector", "Industry",
             "Current Price", "Trailing EPS", "Forward EPS", "PE Ratio", "PEG Ratio",
             "Dividend Yield (%)", "5Y Dividend Yield (%)",
-            "Price Zone (%)", "Stock Strength", "Sentiment",
+            "Price Zone (%)", "Sentiment",
             "Target Price (Actual)", "5Y Low Date", "5Y Low Price", "5Y Dividend Payout"
         ]
         df = df[desired_order]
 
         styled_df = df.style \
-            .applymap(highlight_strength, subset=["Stock Strength"]) \
-            .applymap(highlight_sentiment, subset=["Sentiment"]) \
             .format({
                 "Current Price": "{:.2f}",
                 "5Y Low Price": "{:.2f}",
