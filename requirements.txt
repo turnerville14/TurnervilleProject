@@ -3,3 +3,6 @@ yfinance
 vaderSentiment
 beautifulsoup4
 requests
+numpy
+scikit-learn
+altair

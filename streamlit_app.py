@@ -178,3 +178,51 @@ if st.session_state.logged_in:
                     st.warning(msg_text)
                 elif msg_type == "error":
                     st.error(msg_text)
+
+    # 📈 Enhanced Price Tracker (Single Ticker Only)
+    if len(tickers) == 1:
+        st.markdown("### 📈 Price Range Tracker")
+
+        year_range = st.select_slider("Select analysis period (years)", options=[1, 2, 3, 4, 5], value=1)
+        selected_ticker = tickers[0]
+        stock = yf.Ticker(selected_ticker)
+        end_date = datetime.today()
+        start_date = end_date - timedelta(days=365 * year_range)
+        hist = stock.history(start=start_date, end=end_date)
+
+        if not hist.empty:
+            # 🧮 Monthly low/high
+            monthly = hist.resample("M").agg({
+                "Low": "min",
+                "High": "max"
+            }).dropna()
+
+            # 📊 Daily close
+            daily_close = hist[["Close"]].copy()
+            daily_close.rename(columns={"Close": "Daily Close"}, inplace=True)
+
+            # 🧩 Merge monthly high/low into daily timeline
+            monthly["Date"] = monthly.index
+            monthly = monthly.set_index(monthly["Date"].dt.to_period("M"))
+            daily_close["Month"] = daily_close.index.to_period("M")
+            daily_close["Monthly Low"] = daily_close["Month"].map(monthly["Low"])
+            daily_close["Monthly High"] = daily_close["Month"].map(monthly["High"])
+            daily_close.drop(columns=["Month"], inplace=True)
+
+            st.line_chart(daily_close, use_container_width=True)
+
+            # 📈 Trend Summary
+            start_price = daily_close["Daily Close"].iloc[0]
+            end_price = daily_close["Daily Close"].iloc[-1]
+            pct_change = ((end_price - start_price) / start_price) * 100
+
+            if pct_change > 5:
+                trend = "📈 Upward"
+            elif pct_change < -5:
+                trend = "📉 Downward"
+            else:
+                trend = "➖ Stable"
+
+            st.write(f"**Trend over {year_range} year(s):** {trend} ({pct_change:.2f}%)")
+        else:
+            st.warning(f"No historical data available for {selected_ticker}.")
