@@ -112,9 +112,9 @@ if st.session_state.logged_in:
             low_5y_price = hist["Close"].min()
             low_5y_date = hist["Close"].idxmin()
             payout_5y = get_dividend_payout(ticker, low_5y_date)
-            yield_5y = (payout_5y / low_5y_price) * 100 if low_5y_price else 0
+            yield_5y = (payout_5y / low_5y_price) if low_5y_price else 0
 
-            target_actual = (current_price * dividend_yield / yield_5y) if yield_5y else 0
+            target_actual = (current_price * (dividend_yield/100) / yield_5y) if yield_5y else 0
 
             result = {
                 "Ticker": ticker,
@@ -195,9 +195,9 @@ if st.session_state.logged_in:
             .applymap(highlight_sentiment, subset=["Sentiment"]) \
             .applymap(lambda val: highlight_current_price(df.loc[df["Current Price"] == val].iloc[0]), subset=["Current Price"])
 
+        st.markdown("##### 🗄️ Export Database")
+
         st.dataframe(styled_df, use_container_width=True)
-
-
 
         if messages:
             st.markdown("---")
@@ -217,7 +217,7 @@ if st.session_state.logged_in:
         if not len(tickers) == 1:
             # ⏳ List of stocks
             with st.container(border=True):
-                st.markdown("##### 🎯 Select a Stock")
+                st.markdown("###### 🎯 Select a Stock")
 
                 if len(ticker_list) > 20:
                     selected_ticker = st.selectbox("Select a ticker to view chart", ticker_list)
@@ -243,7 +243,7 @@ if st.session_state.logged_in:
 
             # ⏳ Year Toggle in col0
             with layout[0]:
-                st.markdown("###### Period")
+                # st.markdown("###### Period")
                 year_range = 3  # default
                 year_buttons = [1, 2, 3, 4, 5]
 
@@ -252,38 +252,117 @@ if st.session_state.logged_in:
                         year_range = yr
 
 
-            # 📊 Chart in col1
-            with layout[1]:
-                stock = yf.Ticker(selected_ticker)
-                company_name = stock.info.get("shortName", "Unknown Company")
-                end_date = datetime.today()
-                start_date = end_date - timedelta(days=365 * year_range)
-                hist = stock.history(start=start_date, end=end_date)
+             # 📊 Chart + Analysis
+        with layout[1]:
+            import plotly.graph_objects as go
 
-                if not hist.empty:
-                    monthly = hist.resample("M").agg({"Low": "min", "High": "max"}).dropna()
-                    daily_close = hist[["Close"]].copy()
-                    daily_close.rename(columns={"Close": "Daily Close"}, inplace=True)
+            stock = yf.Ticker(selected_ticker)
+            current_price = stock.info.get("currentPrice", None)
+            company_name = stock.info.get("shortName", "Unknown Company")
+            end_date = datetime.today().replace(tzinfo=None)
+            start_date = end_date - timedelta(days=365 * year_range)
+            hist = stock.history(start=start_date, end=end_date)
 
-                    monthly["Date"] = monthly.index
-                    monthly = monthly.set_index(monthly["Date"].dt.to_period("M"))
-                    daily_close["Month"] = daily_close.index.to_period("M")
-                    daily_close["Monthly Low"] = daily_close["Month"].map(monthly["Low"])
-                    daily_close["Monthly High"] = daily_close["Month"].map(monthly["High"])
-                    daily_close.drop(columns=["Month"], inplace=True)
+            if not hist.empty:
+                # 🧮 Monthly high/low
+                monthly = hist.resample("M").agg({"Low": "min", "High": "max"}).dropna()
 
-                    start_price = daily_close["Daily Close"].iloc[0]
-                    end_price = daily_close["Daily Close"].iloc[-1]
-                    pct_change = ((end_price - start_price) / start_price) * 100
+                # 📊 Daily close
+                daily_close = hist[["Close"]].copy()
+                daily_close.rename(columns={"Close": "Daily Close"}, inplace=True)
 
-                    if pct_change > 5:
-                        trend = "📈 Upward"
-                    elif pct_change < -5:
-                        trend = "📉 Downward"
-                    else:
-                        trend = "➖ Stable"
+                # 🧩 Merge monthly high/low into daily timeline
+                monthly["Date"] = monthly.index
+                monthly = monthly.set_index(monthly["Date"].dt.to_period("M"))
+                daily_close["Month"] = daily_close.index.to_period("M")
+                daily_close["Monthly Low"] = daily_close["Month"].map(monthly["Low"])
+                daily_close["Monthly High"] = daily_close["Month"].map(monthly["High"])
+                daily_close.drop(columns=["Month"], inplace=True)
 
-                    st.write(f"**{company_name} ({selected_ticker}) – {year_range} Year{'s' if year_range > 1 else ''} Trend:** {trend} ({pct_change:.2f}%)")
-                    st.line_chart(daily_close, use_container_width=True)
+                # 📈 Trend Summary
+                start_price = daily_close["Daily Close"].iloc[0]
+                end_price = daily_close["Daily Close"].iloc[-1]
+                pct_change = ((end_price - start_price) / start_price) * 100
+
+                if pct_change > 5:
+                    trend = "📈 Upward"
+                elif pct_change < -5:
+                    trend = "📉 Downward"
                 else:
-                    st.warning(f"No historical data available for {selected_ticker}.")
+                    trend = "➖ Stable"
+
+                # 📐 Year-Specific Dividend-Based Target Price
+                dividends = stock.dividends
+                if dividends.index.tz is not None:
+                    dividends.index = dividends.index.tz_convert(None)
+
+                target_prices = []
+                analysis_start = end_date - timedelta(days=365 * year_range)
+                daily_close.index = daily_close.index.tz_convert(None)
+                analysis_data = daily_close[(daily_close.index >= analysis_start) & (daily_close.index <= end_date)]
+
+                if not analysis_data.empty:
+                    low_price = analysis_data["Daily Close"].min()
+                    low_date = analysis_data["Daily Close"].idxmin()
+                    if low_date.tzinfo is not None:
+                        low_date = low_date.replace(tzinfo=None)
+
+                    payout_window_start = low_date - timedelta(days=366)
+                    payout_window_end = low_date
+                    payouts = dividends[(dividends.index >= payout_window_start) & (dividends.index <= payout_window_end)]
+                    total_payout = payouts.sum()
+                    total_payout_yield = total_payout / low_price
+
+                    div_yield = stock.info.get("dividendYield", 0) or 0
+                    target_price = (current_price * (div_yield / 100)) / total_payout_yield if div_yield else 0
+                    target_prices.append((low_date.year, target_price))
+
+                # 🧾 Display Summary
+                if target_prices:
+                    year_used, latest_target = target_prices[-1]
+                # 📈 Plotly Chart
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=daily_close.index, y=daily_close["Daily Close"], mode='lines', name='Daily Close'))
+                fig.add_trace(go.Scatter(x=daily_close.index, y=daily_close["Monthly High"], mode='lines', name='Monthly High', line=dict(dash='dash')))
+                fig.add_trace(go.Scatter(x=daily_close.index, y=daily_close["Monthly Low"], mode='lines', name='Monthly Low', line=dict(dash='dash')))
+
+                if target_prices and latest_target > 0:
+                    fig.add_hline(y=latest_target, line=dict(color="purple", dash="dot"),
+                                annotation_text=f"Target Price ({year_used})", annotation_position="top left")
+
+                fig.update_layout(
+                    title=dict(
+                        text=f"{company_name} ({selected_ticker})",
+                        x=0.5,
+                        xanchor="center"
+                    ),
+                    xaxis_title="Date",
+                    yaxis_title="Price",
+                    legend_title="Legend",
+                    height=500
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+                
+                with st.container(border=True):
+                    st.markdown("##### 📊 Technical Summary")
+
+                    st.markdown("---")
+                    st.markdown(f"**📊 {year_range} Year{'s' if year_range > 1 else ''} Trend:** {trend} ({pct_change:.2f}%)")
+                    st.markdown(f"**🎯 Dividend-Based Target Price ({year_used}):** ${latest_target:.2f}")
+                    st.markdown("---")
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.markdown(f"**💰 Current Price:** ${current_price:.2f}")
+                        st.markdown(f"**📉 Yearly Low Price:** ${low_price:.2f}")
+                        st.markdown(f"**📅 Low Date:** {low_date.strftime('%Y-%m-%d')}")
+
+                    with col2:
+                        st.markdown(f"**📈 Current Dividend Yield:** {div_yield:.2f}%")
+                        st.markdown(f"**📐 Historical Payout Yield:** {total_payout_yield * 100:.2f}%")
+                        st.markdown(f"**📦 Yearly Low Payout:** ${total_payout:.2f}")
+                        
+            else:
+                st.warning(f"No historical data available for {selected_ticker}.")
