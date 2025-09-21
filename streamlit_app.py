@@ -71,7 +71,7 @@ if st.session_state.logged_in:
             soup = BeautifulSoup(requests.get(url, headers=headers).content, "html.parser")
             news_table = soup.find(id='news-table')
             headlines = [row.a.text for row in news_table.findAll('tr') if row.a]
-            scores = [analyzer.polarity_scores(h)['compound'] for h in headlines[:30]]
+            scores = [analyzer.polarity_scores(h)['compound'] for h in headlines[:10]]
             avg_score = sum(scores) / len(scores) if scores else 0
             if avg_score > 0.2:
                 return "Bullish"
