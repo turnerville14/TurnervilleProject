@@ -248,6 +248,7 @@ if st.session_state.logged_in:
                 # ⏳ Year Toggle in col0
                 with layout[0]:
                     # st.markdown("###### Period")
+                    st.markdown("######")
                     year_range = 3  # default
                     year_buttons = [1, 2, 3, 4, 5]
 
@@ -409,7 +410,7 @@ if st.session_state.logged_in:
                             xaxis_title="Date",
                             yaxis_title="Price",
                             legend_title="Legend",
-                            height=400
+                            height=500
                         )
 
                         st.plotly_chart(fig, use_container_width=True)
