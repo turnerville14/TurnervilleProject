@@ -409,7 +409,7 @@ if st.session_state.logged_in:
                             xaxis_title="Date",
                             yaxis_title="Price",
                             legend_title="Legend",
-                            height=500
+                            height=400
                         )
 
                         st.plotly_chart(fig, use_container_width=True)
