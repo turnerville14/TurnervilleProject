@@ -74,13 +74,13 @@ if st.session_state.logged_in:
             scores = [analyzer.polarity_scores(h)['compound'] for h in headlines[:10]]
             avg_score = sum(scores) / len(scores) if scores else 0
             if avg_score > 0.2:
-                return "🟢 Bullish"
+                return "Bullish"
             elif avg_score < -0.2:
-                return "🔴 Bearish"
+                return "Bearish"
             else:
-                return "🟡 Neutral"
+                return "Neutral"
         except:
-            return "⚪ Unknown"
+            return "Unknown"
 
     def analyze_ticker(ticker):
         ticker = ticker.strip()
@@ -141,18 +141,42 @@ if st.session_state.logged_in:
             messages.append(("error", f"❌ Error analyzing {ticker}: {e}"))
             return None
 
+    def highlight_current_price(row):
+        try:
+            price = row["Current Price"]
+            target = row["Target Price (Actual)"]
+            if pd.isna(target) or target == 0:
+                return ''
+            elif price >= target:
+                return 'color: white; background-color: #800000'  # dark maroon
+            else:
+                return 'color: white; background-color: #006400'  # dark green
+        except KeyError:
+            return ''
+
+
+    def highlight_sentiment(val):
+        Sentiment = val.strip()
+        if Sentiment == "Bullish":
+            return 'color: white; background-color: #006400'  # dark green
+        elif Sentiment == "Bearish":
+            return 'color: white; background-color: #800000'  # dark maroon
+        else:
+            return ''   
+
     if tickers:
         results = [r for t in tickers if (r := analyze_ticker(t)) is not None]
         df = pd.DataFrame(results)
 
         desired_order = [
-            "Ticker", "Name", "Sector", "Industry",
-            "Current Price", "Trailing EPS", "Forward EPS", "PE Ratio", "PEG Ratio",
-            "Dividend Yield (%)", "5Y Dividend Yield (%)",
-            "Price Zone (%)", "Sentiment",
-            "Target Price (Actual)", "5Y Low Date", "5Y Low Price", "5Y Dividend Payout"
+            "Ticker", "Name",  "Sector", "Industry",  "Current Price", "Sentiment", "Trailing EPS", "Forward EPS", 
+            "Dividend Yield (%)", "5Y Low Date", "5Y Low Price", "5Y Dividend Payout", "5Y Dividend Yield (%)",
+            "PE Ratio", "PEG Ratio", "Price Zone (%)", "Target Price (Actual)"
         ]
         df = df[desired_order]
+
+        if "Target Price (Actual)" not in df.columns:
+            df["Target Price (Actual)"] = 0.0
 
         styled_df = df.style \
             .format({
@@ -167,9 +191,13 @@ if st.session_state.logged_in:
                 "Dividend Yield (%)": "{:.2f}%",
                 "5Y Dividend Yield (%)": "{:.2f}%",
                 "Price Zone (%)": "{:.2f}%"
-            })
+            }) \
+            .applymap(highlight_sentiment, subset=["Sentiment"]) \
+            .applymap(lambda val: highlight_current_price(df.loc[df["Current Price"] == val].iloc[0]), subset=["Current Price"])
 
         st.dataframe(styled_df, use_container_width=True)
+
+
 
         if messages:
             st.markdown("---")
@@ -180,49 +208,81 @@ if st.session_state.logged_in:
                     st.error(msg_text)
 
     # 📈 Enhanced Price Tracker (Single Ticker Only)
-    if len(tickers) == 1:
-        st.markdown("### 📈 Price Range Tracker")
+    if not len(tickers) == 0:
+        st.markdown("#### 📈 Chart Analysis")
 
-        year_range = st.select_slider("Select analysis period (years)", options=[1, 2, 3, 4, 5], value=1)
-        selected_ticker = tickers[0]
-        stock = yf.Ticker(selected_ticker)
-        end_date = datetime.today()
-        start_date = end_date - timedelta(days=365 * year_range)
-        hist = stock.history(start=start_date, end=end_date)
+        # ⏳ List of stocks
+        with st.container(border=True):
+            st.markdown("##### 🎯 Select a Stock")
 
-        if not hist.empty:
-            # 🧮 Monthly low/high
-            monthly = hist.resample("M").agg({
-                "Low": "min",
-                "High": "max"
-            }).dropna()
+            ticker_list = df["Ticker"].tolist()
+            selected_ticker = ticker_list[0] if ticker_list else None  # default to first
 
-            # 📊 Daily close
-            daily_close = hist[["Close"]].copy()
-            daily_close.rename(columns={"Close": "Daily Close"}, inplace=True)
-
-            # 🧩 Merge monthly high/low into daily timeline
-            monthly["Date"] = monthly.index
-            monthly = monthly.set_index(monthly["Date"].dt.to_period("M"))
-            daily_close["Month"] = daily_close.index.to_period("M")
-            daily_close["Monthly Low"] = daily_close["Month"].map(monthly["Low"])
-            daily_close["Monthly High"] = daily_close["Month"].map(monthly["High"])
-            daily_close.drop(columns=["Month"], inplace=True)
-
-            st.line_chart(daily_close, use_container_width=True)
-
-            # 📈 Trend Summary
-            start_price = daily_close["Daily Close"].iloc[0]
-            end_price = daily_close["Daily Close"].iloc[-1]
-            pct_change = ((end_price - start_price) / start_price) * 100
-
-            if pct_change > 5:
-                trend = "📈 Upward"
-            elif pct_change < -5:
-                trend = "📉 Downward"
+            if len(ticker_list) > 20:
+                selected_ticker = st.selectbox("Select a ticker to view chart", ticker_list)
             else:
-                trend = "➖ Stable"
+                num_cols = 5  # max 5 buttons per row
+                rows = (len(ticker_list) + num_cols - 1) // num_cols  # ceiling division
 
-            st.write(f"**Trend over {year_range} year(s):** {trend} ({pct_change:.2f}%)")
-        else:
-            st.warning(f"No historical data available for {selected_ticker}.")
+                for row in range(rows):
+                    cols = st.columns(num_cols)
+                    for i in range(num_cols):
+                        idx = row * num_cols + i
+                        if idx < len(ticker_list):
+                            ticker = ticker_list[idx]
+                            if cols[i].button(ticker):
+                                selected_ticker = ticker
+
+
+        # 📦 Container 2: Year Toggle + Chart
+        with st.container(border=True):
+            st.markdown("##### 📈 Price Range Tracker")
+
+            layout = st.columns([1, 4])  # col0 = year toggle, col1 = chart
+
+            # ⏳ Year Toggle in col0
+            with layout[0]:
+                st.markdown("###### Period")
+                year_range = 3  # default
+                year_buttons = [1, 2, 3, 4, 5]
+
+                for yr in year_buttons:
+                    if st.button(f"{yr} Year{'s' if yr > 1 else ''}"):
+                        year_range = yr
+
+
+            # 📊 Chart in col1
+            with layout[1]:
+                stock = yf.Ticker(selected_ticker)
+                company_name = stock.info.get("shortName", "Unknown Company")
+                end_date = datetime.today()
+                start_date = end_date - timedelta(days=365 * year_range)
+                hist = stock.history(start=start_date, end=end_date)
+
+                if not hist.empty:
+                    monthly = hist.resample("M").agg({"Low": "min", "High": "max"}).dropna()
+                    daily_close = hist[["Close"]].copy()
+                    daily_close.rename(columns={"Close": "Daily Close"}, inplace=True)
+
+                    monthly["Date"] = monthly.index
+                    monthly = monthly.set_index(monthly["Date"].dt.to_period("M"))
+                    daily_close["Month"] = daily_close.index.to_period("M")
+                    daily_close["Monthly Low"] = daily_close["Month"].map(monthly["Low"])
+                    daily_close["Monthly High"] = daily_close["Month"].map(monthly["High"])
+                    daily_close.drop(columns=["Month"], inplace=True)
+
+                    start_price = daily_close["Daily Close"].iloc[0]
+                    end_price = daily_close["Daily Close"].iloc[-1]
+                    pct_change = ((end_price - start_price) / start_price) * 100
+
+                    if pct_change > 5:
+                        trend = "📈 Upward"
+                    elif pct_change < -5:
+                        trend = "📉 Downward"
+                    else:
+                        trend = "➖ Stable"
+
+                    st.write(f"**{company_name} ({selected_ticker}) – {year_range} Year{'s' if year_range > 1 else ''} Trend:** {trend} ({pct_change:.2f}%)")
+                    st.line_chart(daily_close, use_container_width=True)
+                else:
+                    st.warning(f"No historical data available for {selected_ticker}.")
