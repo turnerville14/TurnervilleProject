@@ -71,7 +71,7 @@ if st.session_state.logged_in:
             soup = BeautifulSoup(requests.get(url, headers=headers).content, "html.parser")
             news_table = soup.find(id='news-table')
             headlines = [row.a.text for row in news_table.findAll('tr') if row.a]
-            scores = [analyzer.polarity_scores(h)['compound'] for h in headlines[:10]]
+            scores = [analyzer.polarity_scores(h)['compound'] for h in headlines[:30]]
             avg_score = sum(scores) / len(scores) if scores else 0
             if avg_score > 0.2:
                 return "Bullish"
@@ -210,28 +210,29 @@ if st.session_state.logged_in:
     # 📈 Enhanced Price Tracker (Single Ticker Only)
     if not len(tickers) == 0:
         st.markdown("#### 📈 Chart Analysis")
+        
+        ticker_list = df["Ticker"].tolist()
+        selected_ticker = ticker_list[0] if ticker_list else None  # default to first
 
-        # ⏳ List of stocks
-        with st.container(border=True):
-            st.markdown("##### 🎯 Select a Stock")
+        if not len(tickers) == 1:
+            # ⏳ List of stocks
+            with st.container(border=True):
+                st.markdown("##### 🎯 Select a Stock")
 
-            ticker_list = df["Ticker"].tolist()
-            selected_ticker = ticker_list[0] if ticker_list else None  # default to first
+                if len(ticker_list) > 20:
+                    selected_ticker = st.selectbox("Select a ticker to view chart", ticker_list)
+                else:
+                    num_cols = 5  # max 5 buttons per row
+                    rows = (len(ticker_list) + num_cols - 1) // num_cols  # ceiling division
 
-            if len(ticker_list) > 20:
-                selected_ticker = st.selectbox("Select a ticker to view chart", ticker_list)
-            else:
-                num_cols = 5  # max 5 buttons per row
-                rows = (len(ticker_list) + num_cols - 1) // num_cols  # ceiling division
-
-                for row in range(rows):
-                    cols = st.columns(num_cols)
-                    for i in range(num_cols):
-                        idx = row * num_cols + i
-                        if idx < len(ticker_list):
-                            ticker = ticker_list[idx]
-                            if cols[i].button(ticker):
-                                selected_ticker = ticker
+                    for row in range(rows):
+                        cols = st.columns(num_cols)
+                        for i in range(num_cols):
+                            idx = row * num_cols + i
+                            if idx < len(ticker_list):
+                                ticker = ticker_list[idx]
+                                if cols[i].button(ticker):
+                                    selected_ticker = ticker
 
 
         # 📦 Container 2: Year Toggle + Chart
