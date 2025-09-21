@@ -38,7 +38,7 @@ if st.session_state.logged_in:
 
     st.markdown("## 📊 Stock Analysis Dashboard")
 
-    raw_input = st.text_input("Enter stock tickers (e.g., AAPL MSFT, KO)")
+    raw_input = st.text_input("Enter stock tickers (e.g., AAPL MSFT, KO, D05.SI (add .SI for SG stocks))")
     tickers = re.split(r'[,\s]+', raw_input.upper().strip())
     tickers = [t for t in tickers if t]
 
