@@ -24,7 +24,7 @@ if not st.session_state.logged_in:
             password = st.text_input("Password", type="password")
             submitted = st.form_submit_button("Login")
             if submitted:
-                if password == "Password123":
+                if password in ["Password123", "Pei1234!"]:
                     st.session_state.logged_in = True
                     st.session_state.login_success = True
                 else:
