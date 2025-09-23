@@ -247,31 +247,39 @@ if st.session_state.logged_in:
         if not len(tickers) == 0:
             st.markdown("#### 📈 Chart Analysis")
             
+            # 🧠 Initialize session state keys at the top of your script
             if "selected_ticker" not in st.session_state:
                 st.session_state["selected_ticker"] = None
+            if "ticker_trigger" not in st.session_state:
+                st.session_state["ticker_trigger"] = False
 
+            # 📊 Ticker selection logic
             ticker_list = df["Ticker"].tolist()
-            selected_ticker = st.session_state["selected_ticker"] or ticker_list[0]
+            selected_ticker = ticker_list[0] if ticker_list else None  # fallback default
 
-            if not len(tickers) == 1:
-                # ⏳ List of stocks
-                with st.container(border=True):
-                    st.markdown("###### 🎯 Select a Stock")
+            if len(ticker_list) > 20:
+                selected = st.selectbox("Select a ticker to view chart", ticker_list)
+                st.session_state["selected_ticker"] = selected
+                st.session_state["ticker_trigger"] = True
+            else:
+                num_cols = 5
+                rows = (len(ticker_list) + num_cols - 1) // num_cols
+                for row in range(rows):
+                    cols = st.columns(num_cols)
+                    for i in range(num_cols):
+                        idx = row * num_cols + i
+                        if idx < len(ticker_list):
+                            ticker = ticker_list[idx]
+                            if cols[i].button(ticker, key=f"btn_{ticker}"):
+                                st.session_state["selected_ticker"] = ticker
+                                st.session_state["ticker_trigger"] = True
 
-                    if len(ticker_list) > 20:
-                        selected = st.selectbox("Select a ticker to view chart", ticker_list)
-                        st.session_state["selected_ticker"] = selected
-                    else:
-                        num_cols = 5
-                        rows = (len(ticker_list) + num_cols - 1) // num_cols
-                        for row in range(rows):
-                            cols = st.columns(num_cols)
-                            for i in range(num_cols):
-                                idx = row * num_cols + i
-                                if idx < len(ticker_list):
-                                    ticker = ticker_list[idx]
-                                    if cols[i].button(ticker):
-                                        st.session_state["selected_ticker"] = ticker
+            # ✅ Finalize selection using the trigger
+            if st.session_state["ticker_trigger"]:
+                selected_ticker = st.session_state["selected_ticker"]
+                st.session_state["ticker_trigger"] = False  # reset trigger
+            else:
+                selected_ticker = st.session_state["selected_ticker"] or ticker_list[0]
 
             # 📦 Container 2: Year Toggle + Chart
             with st.container(border=True):
