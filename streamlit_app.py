@@ -239,9 +239,9 @@ if st.session_state.logged_in:
                 elif msg_type == "error":
                     st.error(msg_text)
 
-    toggle = st.toggle("Activate Chart Analysis?", value=True)
+    toggle_chart = st.toggle("Activate Chart Analysis?", value=True)
 
-    if toggle:
+    if toggle_chart:
     
         # 📈 Enhanced Price Tracker
         if not len(tickers) == 0:
@@ -465,9 +465,9 @@ if st.session_state.logged_in:
                     else:
                         st.warning(f"No historical data available for {selected_ticker}.")
 
-    yield_toggle = st.toggle("Activate Dividend Yield Deep Dive?", value=True)
+    toggle_yield = st.toggle("Activate Dividend Yield Deep Dive?", value=True)
 
-    if yield_toggle:
+    if toggle_yield:
         if not len(tickers) == 0:
             def get_yield_analysis(ticker):
                 try:
