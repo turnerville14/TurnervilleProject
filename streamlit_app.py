@@ -247,8 +247,11 @@ if st.session_state.logged_in:
         if not len(tickers) == 0:
             st.markdown("#### 📈 Chart Analysis")
             
+            if "selected_ticker" not in st.session_state:
+                st.session_state["selected_ticker"] = None
+
             ticker_list = df["Ticker"].tolist()
-            selected_ticker = ticker_list[0] if ticker_list else None  # default to first
+            selected_ticker = st.session_state["selected_ticker"] or ticker_list[0]
 
             if not len(tickers) == 1:
                 # ⏳ List of stocks
@@ -256,11 +259,11 @@ if st.session_state.logged_in:
                     st.markdown("###### 🎯 Select a Stock")
 
                     if len(ticker_list) > 20:
-                        selected_ticker = st.selectbox("Select a ticker to view chart", ticker_list)
+                        selected = st.selectbox("Select a ticker to view chart", ticker_list)
+                        st.session_state["selected_ticker"] = selected
                     else:
-                        num_cols = 5  # max 5 buttons per row
-                        rows = (len(ticker_list) + num_cols - 1) // num_cols  # ceiling division
-
+                        num_cols = 5
+                        rows = (len(ticker_list) + num_cols - 1) // num_cols
                         for row in range(rows):
                             cols = st.columns(num_cols)
                             for i in range(num_cols):
@@ -268,8 +271,7 @@ if st.session_state.logged_in:
                                 if idx < len(ticker_list):
                                     ticker = ticker_list[idx]
                                     if cols[i].button(ticker):
-                                        selected_ticker = ticker
-
+                                        st.session_state["selected_ticker"] = ticker
 
             # 📦 Container 2: Year Toggle + Chart
             with st.container(border=True):
