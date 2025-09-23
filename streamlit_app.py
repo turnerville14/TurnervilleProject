@@ -37,8 +37,40 @@ if st.session_state.logged_in:
         st.session_state.login_success = False
 
     st.markdown("## 📊 Stock Analysis Dashboard")
+    
+    hide_textinput = False
 
-    raw_input = st.text_input("Enter stock tickers (e.g., AAPL MSFT, KO, D05.SI (add .SI for SG stocks))")
+    if "raw_input" not in st.session_state:
+        st.session_state["raw_input"] = ""
+
+    # Define default input
+    default_input = ""
+
+    with st.container(border=True):
+        cols = st.columns(4)
+
+        with cols[0]:
+            if st.button("📥 Pei Stocks"):
+                reits = [
+                    "F9D.si", "C38U.si", "9CI.si", "C52.si", "TCU.si", "P34.si", "F99.si", "H02.si", "H13.si", "H78.si",
+                    "C07.si", "J36.si", "CJLU.si", "Q01.si", "S61.si", "OV8.si", "S68.si", "S63.si", "Y92.si", "AGS.si",
+                    "WJP.si", "F34.si", "BSL.si"
+                ]
+                st.session_state["raw_input"] = " ".join(reits)
+
+        with cols[1]:
+            if st.button("📥 Jay Stocks"):
+                reits = [
+                    "TGT", "GOOGL", "GRAB", "TSLA", "DIS"
+                ]
+                st.session_state["raw_input"] = " ".join(reits)
+
+    # Use default_input only if it's set by the button
+    raw_input = st.text_input(
+        "Enter stock tickers (e.g., AAPL MSFT, KO, D05.SI)",
+        value=st.session_state["raw_input"]
+    )
+
     tickers = re.split(r'[,\s]+', raw_input.upper().strip())
     tickers = [t for t in tickers if t]
 
@@ -211,7 +243,7 @@ if st.session_state.logged_in:
 
     if toggle:
     
-        # 📈 Enhanced Price Tracker (Single Ticker Only)
+        # 📈 Enhanced Price Tracker
         if not len(tickers) == 0:
             st.markdown("#### 📈 Chart Analysis")
             
@@ -350,19 +382,6 @@ if st.session_state.logged_in:
                                 line=dict(color="red", dash="dot")
                             )
 
-                            # fig.add_annotation(
-                            #     text=f"🎯 Target Price ({year_used}): ${latest_target:.2f} ${safe_zone_90:.2f} ${safe_zone_80:.2f}",
-                            #     xref="paper", yref="paper",
-                            #     x=0.01, y=-0.01,  # bottom left corner
-                            #     showarrow=False,
-                            #     font=dict(color="gold", size=12),
-                            #     align="right",
-                            #     bgcolor="rgba(128,0,128,0.15)",  # subtle purple background
-                            #     bordercolor="rgba(128,0,128,0.4)",
-                            #     borderwidth=1,
-                            #     opacity=0.95
-                            # )
-
                             fig.add_annotation(
                                 text=f"🎯 Target Price ({year_used}): ${latest_target:.2f}",
                                 xref="paper", yref="paper",
@@ -435,3 +454,72 @@ if st.session_state.logged_in:
                                 
                     else:
                         st.warning(f"No historical data available for {selected_ticker}.")
+
+    yield_toggle = st.toggle("Activate Dividend Yield Deep Dive?", value=True)
+
+    if yield_toggle:
+        if not len(tickers) == 0:
+            def get_yield_analysis(ticker):
+                try:
+                    stock = yf.Ticker(ticker)
+                    info = stock.info
+                    current_price = info.get("currentPrice", 0)
+                    dividend_yield = info.get("dividendYield", 0) or 0
+                    current_payout = current_price * (dividend_yield / 100)
+
+                    # Historical dividend yield extremes
+                    dividends = stock.dividends
+                    prices = stock.history(period="max")["Close"]
+
+                    if dividends.empty or prices.empty:
+                        return None
+
+                    dividends.index = dividends.index.tz_convert(None) if dividends.index.tz else dividends.index
+                    prices.index = prices.index.tz_convert(None) if prices.index.tz else prices.index
+
+                    yield_data = []
+                    for date in dividends.index:
+                        price_on_date = prices.loc[prices.index.asof(date)] if date in prices.index else None
+                        if price_on_date:
+                            yield_pct = (dividends[date] / price_on_date) * 100
+                            yield_data.append((date, yield_pct, price_on_date))
+
+                    if not yield_data:
+                        return None
+
+                    high_yield = max(yield_data, key=lambda x: x[1])
+                    low_yield = min(yield_data, key=lambda x: x[1])
+
+                    debt_ratio = info.get("debtToEquity", None)
+
+                    return {
+                        "Ticker": ticker,
+                        "Name": info.get("shortName", "N/A"),
+                        "Current Price": f"${current_price:.2f}",
+                        "Current Dividend Yield (%)": f"{dividend_yield:.2f}%",
+                        "Current Dividend Payout": f"${current_payout:.3f}",
+                        "Debt Servicing Ratio": f"{debt_ratio:.2f}" if debt_ratio else "N/A",
+                        "High Yield (%)": f"{high_yield[1]:.2f}%",
+                        "High Yield Date": high_yield[0].date(),
+                        "High Yield Price": f"${high_yield[2]:.2f}",
+                        "Low Yield (%)": f"{low_yield[1]:.2f}%",
+                        "Low Yield Date": low_yield[0].date(),
+                        "Low Yield Price": f"${low_yield[2]:.2f}",
+                        "High - Current Yield (%)": f"{high_yield[1] - dividend_yield:.2f}%",
+                        "Low - Current Yield (%)": f"{low_yield[1] - dividend_yield:.2f}%"
+
+                    }
+                except Exception as e:
+                    messages.append(("error", f"❌ Error in yield analysis for {ticker}: {e}"))
+                    return None
+
+            st.markdown("##### 🧮 Dividend Yield Deep Dive")
+
+            yield_results = [get_yield_analysis(t) for t in tickers if t]
+            yield_results = [r for r in yield_results if r]
+
+            if yield_results:
+                yield_df = pd.DataFrame(yield_results)
+                st.dataframe(yield_df, use_container_width=True)
+            else:
+                st.warning("No yield data available for selected tickers.")
