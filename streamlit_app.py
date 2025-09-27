@@ -224,12 +224,12 @@ if st.session_state.logged_in:
                 "5Y Dividend Yield (%)": "{:.2f}%",
                 "Price Zone (%)": "{:.2f}%"
             }) \
-            .applymap(highlight_sentiment, subset=["Sentiment"]) \
-            .applymap(lambda val: highlight_current_price(df.loc[df["Current Price"] == val].iloc[0]), subset=["Current Price"])
+            .map(highlight_sentiment, subset=["Sentiment"]) \
+            .map(lambda val: highlight_current_price(df.loc[df["Current Price"] == val].iloc[0]), subset=["Current Price"])
 
         st.markdown("##### 🗄️ Export Database")
 
-        st.dataframe(styled_df, use_container_width=True)
+        st.dataframe(styled_df, hide_index=True)
 
         if messages:
             st.markdown("---")
@@ -241,9 +241,8 @@ if st.session_state.logged_in:
 
     toggle_chart = st.toggle("Activate Chart Analysis?", value=True)
 
+    # 📈 Enhanced Price Tracker
     if toggle_chart:
-    
-        # 📈 Enhanced Price Tracker
         if not len(tickers) == 0:
             st.markdown("#### 📈 Chart Analysis")
             
@@ -467,6 +466,7 @@ if st.session_state.logged_in:
 
     toggle_yield = st.toggle("Activate Dividend Yield Deep Dive?", value=True)
 
+    # Deep Dive
     if toggle_yield:
         if not len(tickers) == 0:
             def get_yield_analysis(ticker):
@@ -530,6 +530,6 @@ if st.session_state.logged_in:
 
             if yield_results:
                 yield_df = pd.DataFrame(yield_results)
-                st.dataframe(yield_df, use_container_width=True)
+                st.dataframe(yield_df, hide_index=True)
             else:
                 st.warning("No yield data available for selected tickers.")
