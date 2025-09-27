@@ -65,6 +65,13 @@ if st.session_state.logged_in:
                 ]
                 st.session_state["raw_input"] = " ".join(reits)
 
+        with cols[2]:
+            if st.button("📥 SG Banks"):
+                reits = [
+                    "U11.SI", "D05.SI", "O39.SI", "YF8.SI", "AIY.SI", "CHJ.SI", "S41.SI", "S23.SI", "TCU.SI", "G50.SI"
+                ]
+                st.session_state["raw_input"] = " ".join(reits)
+
     # Use default_input only if it's set by the button
     raw_input = st.text_input(
         "Enter stock tickers (e.g., AAPL MSFT, KO, D05.SI)",
